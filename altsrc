@@ -1,26 +1,77 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { ImagePlus, Download, Wallet, Shuffle, Type, Move } from 'lucide-react';
+import { Wallet, ImagePlus } from 'lucide-react';
 
-const Win98Button = ({ children, ...props }) => (
+// Windows 98 color palette
+const WIN98_COLORS = {
+  background: '#008080', // Classic teal
+  window: '#C0C0C0',    // Light gray
+  border: '#808080',     // Dark gray
+  titleBar: '#000080',   // Navy blue
+  text: '#000000',       // Black
+  white: '#FFFFFF'       // White
+};
+
+// Reusable Windows 98 Button Component
+const Win98Button = ({ children, className = '', ...props }) => (
   <button
     {...props}
-    className="px-4 py-2 border-2 bg-[#C0C0C0] border-t-white border-l-white border-r-[#808080] border-b-[#808080] active:border-t-[#808080] active:border-l-[#808080] active:border-r-white active:border-b-white active:translate-y-[1px] disabled:bg-[#808080] disabled:text-[#C0C0C0] font-['MS_Sans_Serif'] text-black"
+    className={`
+      px-4 py-1.5 
+      border-2 
+      bg-[#C0C0C0] 
+      border-t-white 
+      border-l-white 
+      border-r-[#808080] 
+      border-b-[#808080] 
+      active:border-t-[#808080] 
+      active:border-l-[#808080] 
+      active:border-r-white 
+      active:border-b-white 
+      active:translate-y-[1px] 
+      disabled:bg-[#808080] 
+      disabled:text-[#C0C0C0] 
+      font-sans
+      text-black
+      flex
+      items-center
+      justify-center
+      gap-2
+      ${className}
+    `}
   >
     {children}
   </button>
 );
 
-const Win98Window = ({ title, children }) => (
-  <div className="border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#C0C0C0]">
-    <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-['MS_Sans_Serif']">
-      <span>{title}</span>
+// Windows 98 Window Component with title bar and controls
+const Win98Window = ({ title, children, className = '' }) => (
+  <div className={`
+    border-2 
+    border-t-white 
+    border-l-white 
+    border-r-[#808080] 
+    border-b-[#808080] 
+    bg-[#C0C0C0]
+    ${className}
+  `}>
+    <div className="
+      bg-[#000080] 
+      text-white 
+      px-2 
+      py-1 
+      flex 
+      justify-between 
+      items-center 
+      font-sans
+      select-none
+    ">
+      <div className="flex items-center gap-2">
+        <span className="text-sm">{title}</span>
+      </div>
       <div className="flex gap-1">
-        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080]">_</button>
-        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080]">□</button>
-        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080]">×</button>
+        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080] text-sm">_</button>
+        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080] text-sm">□</button>
+        <button className="px-2 border border-white bg-[#C0C0C0] text-black hover:bg-[#808080] text-sm">×</button>
       </div>
     </div>
     <div className="p-4">
@@ -29,52 +80,71 @@ const Win98Window = ({ title, children }) => (
   </div>
 );
 
+// Windows 98 Input Component
+const Win98Input = ({ className = '', ...props }) => (
+  <input
+    {...props}
+    className={`
+      w-full 
+      p-1.5 
+      border-2 
+      border-inset 
+      bg-white 
+      font-sans
+      text-sm
+      focus:outline-none
+      ${className}
+    `}
+  />
+);
+
 const NftMemeMaker = ({ 
   nftCollectionAddress = '0x1234567890123456789012345678901234567890', 
   apiKey = 'YOUR_ALCHEMY_OR_OPENSEA_API_KEY' 
 }) => {
   // States
-  const [walletAddress, setWalletAddress] = useState(null);
+  const [walletAddress, setWalletAddress] = useState('');
   const [ownedNfts, setOwnedNfts] = useState([]);
   const [currentNft, setCurrentNft] = useState(null);
   const [topText, setTopText] = useState('');
   const [bottomText, setBottomText] = useState('');
-  const [backgroundImage, setBackgroundImage] = useState(null);
+  const [backgroundImage, setBackgroundImage] = useState('');
   const [memeColor, setMemeColor] = useState('#000000');
   const [traitCategories, setTraitCategories] = useState({});
   const [selectedTraits, setSelectedTraits] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Refs
+  const [errorMessage, setErrorMessage] = useState('');
+  
   const canvasRef = useRef(null);
 
-  // Connect Wallet function
+  useEffect(() => {
+    if (walletAddress) {
+      fetchTraitCategories();
+    }
+  }, [walletAddress]);
+
   const connectWallet = async () => {
-    setError(null);
-    if (typeof window.ethereum !== 'undefined') {
+    setErrorMessage('');
+    if (typeof window !== 'undefined' && window.ethereum) {
       try {
-        // Request account access
         const accounts = await window.ethereum.request({ 
           method: 'eth_requestAccounts' 
         });
         
-        // Set wallet address
         setWalletAddress(accounts[0]);
-        
-        // Fetch NFTs for the specific collection
         await fetchNftsForCollection(accounts[0]);
       } catch (error) {
         console.error("Wallet connection failed", error);
-        setError("Failed to connect wallet. Please try again.");
+        setErrorMessage("Failed to connect wallet. Please try again.");
       }
     } else {
-      setError("Please install MetaMask or another Web3 wallet!");
+      setErrorMessage("Please install MetaMask or another Web3 wallet!");
     }
   };
 
-  // Fetch NFTs for a specific collection
   const fetchNftsForCollection = async (address) => {
+    if (!apiKey || !address) return;
+    
     try {
       const response = await fetch(
         `https://eth-mainnet.alchemyapi.io/v2/${apiKey}/getNFTs/?owner=${address}&contractAddresses[]=${nftCollectionAddress}`,
@@ -86,12 +156,16 @@ const NftMemeMaker = ({
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       
       const nftList = data.ownedNfts.map((nft) => ({
         id: nft.id.tokenId,
         name: nft.title || `NFT #${nft.id.tokenId}`,
-        image: nft.media[0]?.gateway || nft.media[0]?.raw,
+        image: nft.media[0]?.gateway || nft.media[0]?.raw || '',
         description: nft.description || 'No description'
       }));
 
@@ -102,89 +176,106 @@ const NftMemeMaker = ({
       }
     } catch (error) {
       console.error("Error fetching NFTs", error);
-      setError("Failed to fetch NFTs. Please try again.");
+      setErrorMessage("Failed to fetch NFTs. Please try again.");
     }
   };
 
-  // Select NFT
   const selectNft = (nft) => {
+    if (!nft?.image) return;
+    
     const img = new Image();
     img.crossOrigin = "Anonymous";
     img.onload = () => {
       setBackgroundImage(nft.image);
       setCurrentNft(nft);
     };
+    img.onerror = () => {
+      setErrorMessage("Failed to load NFT image");
+    };
     img.src = nft.image;
   };
 
-  // Generate Meme
   const generateMeme = () => {
-    if (!backgroundImage) return;
+    if (!backgroundImage || !canvasRef.current) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     
     const img = new Image();
     img.crossOrigin = "Anonymous";
+    
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
       
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw image
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       
-      ctx.font = `bold ${canvas.width / 10}px Impact`;
+      // Configure text style
+      const fontSize = Math.floor(canvas.width / 10);
+      ctx.font = `bold ${fontSize}px Impact`;
       ctx.textAlign = 'center';
       ctx.fillStyle = memeColor;
       ctx.strokeStyle = 'black';
-      ctx.lineWidth = canvas.width / 100;
+      ctx.lineWidth = Math.max(1, Math.floor(canvas.width / 100));
       
+      // Draw top text
       if (topText) {
-        ctx.fillText(topText, canvas.width / 2, canvas.height / 6);
-        ctx.strokeText(topText, canvas.width / 2, canvas.height / 6);
+        ctx.fillText(topText, canvas.width / 2, fontSize + 10);
+        ctx.strokeText(topText, canvas.width / 2, fontSize + 10);
       }
       
+      // Draw bottom text
       if (bottomText) {
-        ctx.fillText(bottomText, canvas.width / 2, canvas.height * 5/6);
-        ctx.strokeText(bottomText, canvas.width / 2, canvas.height * 5/6);
+        ctx.fillText(bottomText, canvas.width / 2, canvas.height - 10);
+        ctx.strokeText(bottomText, canvas.width / 2, canvas.height - 10);
       }
     };
+    
+    img.onerror = () => {
+      setErrorMessage("Failed to generate meme");
+    };
+    
     img.src = backgroundImage;
   };
 
-  // Download Meme
   const downloadMeme = () => {
-    if (!backgroundImage) return;
+    if (!backgroundImage || !canvasRef.current) return;
     
     generateMeme();
-    const canvas = canvasRef.current;
-    const link = document.createElement('a');
-    link.download = `nft-meme-${currentNft ? currentNft.name : 'custom'}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
+    
+    try {
+      const canvas = canvasRef.current;
+      const link = document.createElement('a');
+      link.download = `nft-meme-${currentNft?.name || 'custom'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (error) {
+      console.error("Error downloading meme", error);
+      setErrorMessage("Failed to download meme");
+    }
   };
 
-  useEffect(() => {
-    if (walletAddress) {
-      fetchTraitCategories();
-    }
-  }, [walletAddress]);
-
   const fetchTraitCategories = async () => {
+    if (!nftCollectionAddress) return;
+    
     try {
       const response = await fetch(
-        `https://api.opensea.io/api/v1/collection/${nftCollectionAddress}/traits`,
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+        `https://api.opensea.io/api/v1/collection/${nftCollectionAddress}/traits`
       );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
       const data = await response.json();
-      setTraitCategories(data.traits);
+      setTraitCategories(data.traits || {});
     } catch (error) {
       console.error("Error fetching traits", error);
-      setError("Failed to fetch trait categories.");
+      setErrorMessage("Failed to fetch trait categories.");
     }
   };
 
@@ -195,158 +286,134 @@ const NftMemeMaker = ({
     }));
   };
 
-  const generateCustomNft = async () => {
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        `https://api.example.com/generate-nft`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(selectedTraits)
-        }
-      );
-      
-      const data = await response.json();
-      setBackgroundImage(data.image);
-    } catch (error) {
-      console.error("Error generating custom NFT", error);
-      setError("Failed to generate custom NFT.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   return (
-    <div className="container mx-auto p-4 max-w-4xl bg-[#008080] min-h-screen font-['MS_Sans_Serif']">
-      {error && (
-        <div className="mb-4 p-2 border-2 bg-white border-red-500 text-red-500">
-          {error}
-        </div>
-      )}
+    <div className="min-h-screen bg-[#008080] p-4 font-sans">
+      {/* Hidden canvas for meme generation */}
+      <canvas ref={canvasRef} className="hidden" />
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Main Meme Window */}
-        <Win98Window title="NFT MEME MAKER.EXE">
-          <div className="space-y-4">
-            {/* Wallet Connection */}
-            <div className="mb-4">
-              {!walletAddress ? (
-                <Win98Button onClick={connectWallet}>
-                  <Wallet className="inline mr-2 h-4 w-4" /> Connect Wallet.exe
-                </Win98Button>
-              ) : (
-                <div className="flex items-center justify-between p-2 bg-white border border-[#808080]">
-                  <span className="text-xs">
-                    WALLET: {walletAddress.substring(0, 6)}...
-                    {walletAddress.substring(walletAddress.length - 4)}
-                  </span>
-                  <Win98Button onClick={() => setWalletAddress(null)}>
-                    Disconnect
-                  </Win98Button>
-                </div>
-              )}
-            </div>
-
-            {/* Preview Area */}
-            <div className="border-2 border-inset bg-white p-2 min-h-[300px] flex items-center justify-center">
-              {backgroundImage ? (
-                <img 
-                  src={backgroundImage} 
-                  alt="Meme Preview" 
-                  className="max-w-full h-auto"
-                />
-              ) : (
-                <div className="text-[#808080] text-center">
-                  <ImagePlus className="mx-auto mb-2" />
-                  No Image Selected
-                </div>
-              )}
-            </div>
-
-            {/* Text Controls */}
-            <div className="space-y-2">
-              <input
-                type="text"
-                value={topText}
-                onChange={(e) => setTopText(e.target.value)}
-                placeholder="TOP TEXT"
-                className="w-full p-1 border-2 border-inset bg-white font-['MS_Sans_Serif']"
-              />
-              <input
-                type="text"
-                value={bottomText}
-                onChange={(e) => setBottomText(e.target.value)}
-                placeholder="BOTTOM TEXT"
-                className="w-full p-1 border-2 border-inset bg-white font-['MS_Sans_Serif']"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <Win98Button 
-                onClick={generateMeme}
-                disabled={!backgroundImage}
-              >
-                Generate.exe
-              </Win98Button>
-              <Win98Button 
-                onClick={downloadMeme}
-                disabled={!backgroundImage}
-              >
-                Save.exe
-              </Win98Button>
-            </div>
+      {/* Start Menu Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#C0C0C0] border-t-2 border-t-white p-1">
+        <div className="flex items-center gap-2">
+          <Win98Button className="py-0.5">
+            <img src="/api/placeholder/16/16" alt="Win98" className="w-4 h-4" />
+            Start
+          </Win98Button>
+          <div className="border border-inset bg-[#C0C0C0] px-2 py-1 text-xs flex-1">
+            {errorMessage ? 'Error' : isGenerating ? 'Processing...' : 'Ready'}
           </div>
-        </Win98Window>
+          <div className="border border-inset bg-[#C0C0C0] px-2 py-1 text-xs">
+            {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
 
-        {/* Trait Selection Window */}
-        <Win98Window title="TRAIT SELECTOR.EXE">
-          <div className="space-y-4">
-            {Object.entries(traitCategories).map(([category, traits]) => (
-              <div key={category} className="space-y-2">
-                <div className="bg-[#000080] text-white px-2 py-1 text-sm">
-                  {category.toUpperCase()}
-                </div>
-                <div className="grid grid-cols-2 gap-2 p-2 border-2 border-inset bg-white">
-                  {traits.map((trait) => (
+      {/* Main Content */}
+      <div className="container mx-auto max-w-4xl mb-16">
+        {errorMessage && (
+          <Win98Window title="Error.exe" className="mb-4">
+            <div className="text-red-600 text-sm">
+              {errorMessage}
+            </div>
+          </Win98Window>
+        )}
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Main Meme Window */}
+          <Win98Window title="NFT MEME MAKER.EXE">
+            <div className="space-y-4">
+              {/* Wallet Connection */}
+              <div className="mb-4">
+                {!walletAddress ? (
+                  <Win98Button onClick={connectWallet}>
+                    <Wallet className="h-4 w-4" />
+                    Connect Wallet.exe
+                  </Win98Button>
+                ) : (
+                  <div className="flex items-center justify-between p-2 bg-white border-2 border-inset">
+                    <span className="text-xs">
+                      Connected: {walletAddress.substring(0, 6)}...
+                      {walletAddress.substring(walletAddress.length - 4)}
+                    </span>
+                    <Win98Button onClick={() => setWalletAddress('')} className="text-xs">
+                      Disconnect
+                    </Win98Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Preview Area */}
+              <div className="border-2 border-inset bg-white p-2 min-h-[300px] flex items-center justify-center">
+                {backgroundImage ? (
+                  <img 
+                    src={backgroundImage} 
+                    alt="Meme Preview" 
+                    className="max-w-full h-auto"
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <div className="text-[#808080] text-center">
+                    <ImagePlus className="mx-auto mb-2" />
+                    <span className="text-sm">No Image Selected</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Text Controls */}
+              <div className="space-y-2">
+                <Win98Input
+                  value={topText}
+                  onChange={(e) => setTopText(e.target.value)}
+                  placeholder="TOP TEXT"
+                />
+                <Win98Input
+                  value={bottomText}
+                  onChange={(e) => setBottomText(e.target.value)}
+                  placeholder="BOTTOM TEXT"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Win98Button 
+                  onClick={generateMeme}
+                  disabled={!backgroundImage}
+                >
+                  Generate.exe
+                </Win98Button>
+                <Win98Button 
+                  onClick={downloadMeme}
+                  disabled={!backgroundImage}
+                >
+                  Save.exe
+                </Win98Button>
+              </div>
+            </div>
+          </Win98Window>
+
+          {/* NFT Selection Window */}
+          <Win98Window title="NFT SELECTOR.EXE">
+            <div className="space-y-4">
+              {ownedNfts.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {ownedNfts.map((nft) => (
                     <Win98Button
-                      key={trait.value}
-                      onClick={() => selectTrait(category, trait.value)}
-                      className={selectedTraits[category] === trait.value ? 'bg-[#000080] text-white' : ''}
+                      key={nft.id}
+                      onClick={() => selectNft(nft)}
+                      className={`text-xs ${
+                        currentNft?.id === nft.id ? 'bg-[#000080] text-white' : ''
+                      }`}
                     >
-                      {trait.value}
+                      {nft.name}
                     </Win98Button>
                   ))}
                 </div>
-              </div>
-            ))}
-
-            <Win98Button
-              onClick={generateCustomNft}
-              disabled={isGenerating || Object.keys(selectedTraits).length === 0}
-              className="w-full"
-            >
-              {isGenerating ? 'PROCESSING...' : 'GENERATE CUSTOM NFT.EXE'}
-            </Win98Button>
-          </div>
-        </Win98Window>
-
-        {/* Hidden Canvas */}
-        <canvas ref={canvasRef} className="hidden" />
-      </div>
-
-      {/* Status Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#C0C0C0] border-t-2 border-t-white p-1 text-sm">
-        <span className="border border-inset bg-white px-2">
-          {error ? 'Error' : isGenerating ? 'Processing...' : 'Ready'}
-        </span>
+              ) : (
+                <div className="text-center text-sm text-[#808080]">
+                  {walletAddress ? 'No NFTs found' : 'Connect wallet to view NFTs'}
+                </div>
+              )}
+            </div>
+          </Win98Window>
+        </div>
       </div>
     </div>
-  );
-};
-
-export default NftMemeMaker;
